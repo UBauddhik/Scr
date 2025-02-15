@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # ===============================
-# 📌 VERIFY USERS & FLAG UNEXPECTED USERS
+# 📌 CONFIGURE USERS, PERMISSIONS & PASSWORDS
 # ===============================
-# This script compares system users against the expected list.
-# It flags any unexpected users and provides investigative details.
+# This script ensures all expected users exist, have correct passwords, and proper permissions.
 
 EXPECTED_USERS=(
 "pierre_caters" "leon_serpollet" "henry_ford" "rene_thomas" "john_cobb"
@@ -15,39 +14,42 @@ EXPECTED_USERS=(
 "maurice_augieres" "gaston_chasseloup" "william_vanderbilt"
 )
 
-# Save expected users to a temporary file
-echo -e "${EXPECTED_USERS[@]}" | tr ' ' '\n' | sort > expected_users.txt
-
-# Extract all system users and compare against expected list
-cut -d' ' -f1 extra_users_shells.txt | sort > all_users.txt
-comm -23 all_users.txt expected_users.txt > unexpected_users.txt
+PASSWORD_HASH="$6$KHk2hJlrIZKWxWA9$z2OrpVg05wxoUp/BL12VY9rvxvgyZhta.qKf9SwckeNMcW4QvCJACSA4QyBwy88UpPAGDrskbu7rb7sh8fbnM1"
 
 # ===============================
-# ✅ Step 1: List Unexpected Users
+# ✅ Step 1: Ensure Users Exist and Set Correct Password
 # ===============================
-echo "🔹 Checking for unexpected users..."
-if [ -s unexpected_users.txt ]; then
-    echo "⚠️ The following users exist but are NOT in the expected list:"
-    cat unexpected_users.txt
-else
-    echo "✅ No unexpected users found."
-fi
+echo "🔹 Ensuring all expected users exist..."
+for user in "${EXPECTED_USERS[@]}"; do
+    if ! id "$user" &>/dev/null; then
+        echo "➕ Creating user: $user"
+        sudo useradd -m -s /sbin/nologin "$user"
+    fi
+    echo "$user:$PASSWORD_HASH" | sudo chpasswd -e
+    echo "✅ Password updated for: $user"
+done
 
 # ===============================
-# ✅ Step 2: Investigate Unexpected Users
+# ✅ Step 2: Set Correct Permissions
 # ===============================
-if [ -s unexpected_users.txt ]; then
-    echo "🔍 Investigating unexpected users..."
-    while read -r user; do
-        echo -e "\n🔹 Checking details for: $user"
-        id $user
-        sudo grep "^$user:" /etc/passwd
-        sudo grep "^$user:" /etc/shadow
-        sudo ls -ld /home/$user
-    done < unexpected_users.txt
-fi
+echo "🔹 Configuring user permissions..."
+for user in "${EXPECTED_USERS[@]}"; do
+    sudo chmod 700 /home/$user
+    sudo chown $user:$user /home/$user
+    sudo usermod -aG ftp "$user"
+    echo "✅ Permissions set for: $user"
+done
 
-# Cleanup temporary files
-rm -f all_users.txt expected_users.txt
+# ===============================
+# ✅ Step 3: Final Verification
+# ===============================
+echo "🔍 Verifying user configuration..."
+for user in "${EXPECTED_USERS[@]}"; do
+    echo "🔹 Checking $user:"
+    id $user
+    sudo ls -ld /home/$user
+    sudo grep "^$user:" /etc/shadow
+    echo "---------------------------------"
+done
 
-echo "✅ Verification complete! Review 'unexpected_users.txt' if needed."
+echo "✅ All users configured successfully!"
