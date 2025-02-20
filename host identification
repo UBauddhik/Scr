@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PCAP_FILE="filename.pcap"
+PCAP_FILE="20110413_pcap_1.pcap"
 
 echo "[+] Checking TTL values for OS fingerprinting..."
 tshark -r $PCAP_FILE -Y "ip" -T fields -e ip.src -e ip.ttl | sort | uniq > ttl_values.txt
