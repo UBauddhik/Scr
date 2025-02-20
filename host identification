@@ -1,0 +1,37 @@
+#!/bin/bash
+
+PCAP_FILE="filename.pcap"
+
+echo "[+] Checking TTL values for OS fingerprinting..."
+tshark -r $PCAP_FILE -Y "ip" -T fields -e ip.src -e ip.ttl | sort | uniq > ttl_values.txt
+
+echo "[+] Checking TCP Window Sizes..."
+tshark -r $PCAP_FILE -Y "tcp.flags.syn == 1 && tcp.flags.ack == 0" -T fields -e ip.src -e tcp.window_size_value | sort | uniq > tcp_window_sizes.txt
+
+echo "[+] Identifying Host Roles..."
+echo "Source IP, Packets Sent, Packets Received" > host_roles.csv
+awk '{print $1 "," $2 "," $3}' top_talkers.txt >> host_roles.csv
+
+echo "[+] Determining OS from TTL values..."
+echo "IP, TTL, OS" > os_fingerprint.csv
+while read line; do
+    IP=$(echo $line | awk '{print $1}')
+    TTL=$(echo $line | awk '{print $2}')
+    if [ "$TTL" -eq 128 ]; then
+        OS="Windows"
+    elif [ "$TTL" -eq 64 ]; then
+        OS="Linux"
+    elif [ "$TTL" -eq 255 ]; then
+        OS="Network Device"
+    else
+        OS="Unknown"
+    fi
+    echo "$IP, $TTL, $OS" >> os_fingerprint.csv
+done < ttl_values.txt
+
+echo "[+] Done! Check output files:"
+echo "- ttl_values.txt (TTL-based OS Detection)"
+echo "- tcp_window_sizes.txt (TCP Window Analysis)"
+echo "- host_roles.csv (Host Role Estimation)"
+echo "- os_fingerprint.csv (Final OS Fingerprint)"
+
